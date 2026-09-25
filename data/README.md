@@ -16,7 +16,7 @@ The GeoPackage contains 18 reviewed areas and 2,416 source bounding boxes:
 | `siv` | 60 | helper/distractor |
 | `lyng` | 94 | helper/distractor |
 
-Generated PNG tiles, YOLO text labels and training runs are intentionally not
+Generated TIFF tiles, YOLO text labels and training runs are intentionally not
 versioned. Create them with `prepare_wms_yolo_dataset.py`; its default output
 can be placed below `data/generated/`, which is ignored by Git.
 

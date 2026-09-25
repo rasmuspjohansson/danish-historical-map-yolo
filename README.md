@@ -20,11 +20,11 @@ The included example model detects `engtotter`, `mosepolygoner` and
 
 | Path | Purpose |
 | --- | --- |
-| `src/ML_object_detection/prepare_wms_yolo_dataset.py` | Build a masked YOLO dataset from WMS and GeoPackage annotations |
-| `src/ML_object_detection/train.py` | Train and validate a YOLO detector |
-| `src/ML_object_detection/infer_with_sahi.py` | Run sliced inference and write LabelMe JSON |
-| `src/ML_object_detection/export_prediction_candidates_to_gpkg.py` | Export georeferenced predictions for QGIS review |
-| `src/ML_object_detection/geopackage_to_yolo.py` | Convert existing georeferenced GeoTIFF tiles and boxes to YOLO labels |
+| `src/danish-historical-map-yolo/prepare_wms_yolo_dataset.py` | Build a masked YOLO dataset from WMS and GeoPackage annotations |
+| `../ML_object_detection/src/ML_object_detection/train.py` | Train and validate a YOLO detector (sibling repo) |
+| `../ML_object_detection/src/ML_object_detection/infer_with_sahi.py` | Run sliced inference and write LabelMe JSON (sibling repo) |
+| `src/danish-historical-map-yolo/export_prediction_candidates_to_gpkg.py` | Export georeferenced predictions for QGIS review |
+| `src/danish-historical-map-yolo/geopackage_to_yolo.py` | Convert existing georeferenced GeoTIFF tiles and boxes to YOLO labels |
 | `data/annotations/` | Example reviewed areas and source bounding boxes |
 | `models/hoje_maalebordsblade_v3.pt` | Included experimental YOLOv8n weights |
 | `models/MODEL_CARD.md` | Model purpose, metrics and limitations |
@@ -34,7 +34,26 @@ Generated datasets and training runs are excluded from Git.
 ## Installation
 
 Install [Miniforge](https://github.com/conda-forge/miniforge), open a Miniforge
-Prompt, and run from the repository root:
+Prompt, and run from the repository root.
+
+Clone the shared training and inference utilities **next to** this repository
+(sibling folder):
+
+```bat
+cd ..
+git clone https://github.com/SDFIdk/ML_object_detection.git
+cd danish-historical-map-yolo
+```
+
+On Bash:
+
+```bash
+cd ..
+git clone https://github.com/SDFIdk/ML_object_detection.git
+cd danish-historical-map-yolo
+```
+
+Create the conda environment:
 
 ```bat
 mamba env create -f environment.yml
@@ -44,9 +63,9 @@ mamba activate ML_object_detection
 Check that the main programs load:
 
 ```bat
-python src\ML_object_detection\prepare_wms_yolo_dataset.py --help
-python src\ML_object_detection\train.py --help
-python src\ML_object_detection\infer_with_sahi.py --help
+python src\danish-historical-map-yolo\prepare_wms_yolo_dataset.py --help
+python ..\ML_object_detection\src\ML_object_detection\train.py --help
+python ..\ML_object_detection\src\ML_object_detection\infer_with_sahi.py --help
 ```
 
 ## Input GeoPackage
@@ -88,7 +107,7 @@ $env:DATAFORDELER_APIKEY="YOUR_OWN_KEY"
 Generate the example dataset:
 
 ```bat
-python src\ML_object_detection\prepare_wms_yolo_dataset.py ^
+python src\danish-historical-map-yolo\prepare_wms_yolo_dataset.py ^
   --gpkg "data\annotations\hoje_maalebordsblade_annotations.gpkg" ^
   --areas-layer "hoje_maalebordsblad_annoteringsomraade" ^
   --boxes-layer "bbox_alle_objekter_v3" ^
@@ -110,7 +129,7 @@ python src\ML_object_detection\prepare_wms_yolo_dataset.py ^
 On Bash, replace `^` with `\` and use
 `export DATAFORDELER_APIKEY=YOUR_OWN_KEY`.
 
-The generator writes:
+The generator writes GeoTIFF tiles (`.tif`):
 
 ```text
 data/generated/hoje_maalebordsblade/
@@ -132,10 +151,11 @@ class counts without downloading images.
 
 ## 2. Train
 
-Start a new model from the standard YOLOv8n checkpoint:
+Start a new model from the standard YOLOv8n checkpoint (from this repo root,
+using the sibling training script):
 
 ```bat
-python src\ML_object_detection\train.py ^
+python ..\ML_object_detection\src\ML_object_detection\train.py ^
   --data "data\generated\hoje_maalebordsblade\dataset.yaml" ^
   --weights yolov8n.pt ^
   --epochs 50 ^
@@ -146,21 +166,19 @@ python src\ML_object_detection\train.py ^
 
 Use `--device cuda:0` when a compatible NVIDIA/CUDA installation is available.
 The script prints exact `BEST_WEIGHTS=` and `LAST_WEIGHTS=` paths and validates
-`best.pt` after training. Use `best.pt` for later inference.
+the best checkpoint after training. Use `best.pt` for later inference.
 
 Training output is written below `runs/detect/` and is ignored by Git.
 
 ## 3. Run the included model on large images
 
 ```bat
-python src\ML_object_detection\infer_with_sahi.py ^
+python ..\ML_object_detection\src\ML_object_detection\infer_with_sahi.py ^
   --weights "models\hoje_maalebordsblade_v3.pt" ^
-  --folder-with-images "path\to\images" ^
-  --result-folder "output\labelme" ^
-  --slice-size 640 ^
-  --overlap-ratio 0.0625 ^
-  --confidence 0.30 ^
-  --device cpu
+  --folder_with_images "path\to\images" ^
+  --result_folder "output\labelme" ^
+  --slice_width 640 ^
+  --overlap_ratio 0.0625
 ```
 
 The output is one LabelMe-compatible JSON file per image. This route operates in
@@ -172,7 +190,7 @@ For tiles produced by the dataset generator, predictions can be transformed
 back to map coordinates using `tile_manifest.csv`:
 
 ```bat
-python src\ML_object_detection\export_prediction_candidates_to_gpkg.py ^
+python src\danish-historical-map-yolo\export_prediction_candidates_to_gpkg.py ^
   --weights "models\hoje_maalebordsblade_v3.pt" ^
   --images "data\generated\hoje_maalebordsblade\images\val" ^
   --manifest "data\generated\hoje_maalebordsblade\tile_manifest.csv" ^
@@ -230,3 +248,15 @@ an authoritative map-production result.
 
 The repository contains no Datafordeler API key. Each user must supply their
 own credentials and comply with the service terms.
+
+## Smoke test
+
+From the repository root, with `ML_object_detection` cloned alongside and a
+single `*token.txt` file containing your Datafordeler API key:
+
+```bash
+python test.py
+```
+
+This runs dataset download, training, inference, and GeoPackage export as
+described above.

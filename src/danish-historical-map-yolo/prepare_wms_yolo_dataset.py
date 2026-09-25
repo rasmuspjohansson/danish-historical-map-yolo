@@ -2,7 +2,7 @@
 
 The script reads reviewed annotation polygons and bounding boxes from a
 GeoPackage. It creates a regular grid inside the reviewed polygons, downloads
-each tile from a WMS as a three-channel RGB PNG, converts intersecting boxes to
+each tile from a WMS as a three-channel RGB GeoTIFF, converts intersecting boxes to
 YOLO labels, splits by annotation area, and writes dataset.yaml plus a manifest.
 
 The API key is read from an environment variable and is never written to disk.
@@ -457,7 +457,7 @@ def main() -> None:
             east_code = int(round(bounds[0] / args.pixel_size))
             north_code = int(round(bounds[1] / args.pixel_size))
             stem = f"area_{area_hash}_e{east_code}_n{north_code}"
-            image_path = output / "images" / split / f"{stem}.png"
+            image_path = output / "images" / split / f"{stem}.tif"
             label_path = output / "labels" / split / f"{stem}.txt"
 
             lines, tile_class_counts, included_boxes, included_ids = yolo_lines_for_tile(
@@ -491,7 +491,7 @@ def main() -> None:
                         included_boxes,
                         args.edge_box_padding_pixels * args.pixel_size,
                     )
-                image.save(image_path, format="PNG", optimize=True)
+                image.save(image_path, format="TIFF")
                 if args.delay > 0:
                     time.sleep(args.delay)
             if not args.dry_run:
@@ -507,7 +507,7 @@ def main() -> None:
                 for class_name, class_id in class_to_id.items()
             }
             manifest_row = {
-                    "filename": f"{stem}.png",
+                    "filename": f"{stem}.tif",
                     "split": split,
                     "area_id": area_key,
                     "crs": args.target_crs,
@@ -528,7 +528,7 @@ def main() -> None:
             manifest_rows.append(manifest_row)
 
             tile_record = {
-                    "tile_name": f"{stem}.png",
+                    "tile_name": f"{stem}.tif",
                     "split": split,
                     "area_id": area_key,
                     "coverage": coverage,

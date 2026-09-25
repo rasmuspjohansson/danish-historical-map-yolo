@@ -8,6 +8,7 @@ __pycache__/
 .env
 .env.*
 !.env.example
+*token.txt
 .venv/
 venv/
 env/
