@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Environments and credentials
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+env/
+
+# Generated datasets and training outputs
+data/generated/
+runs/
+output/
+outputs/
+
+# Downloaded or intermediate model weights
+*.pt
+!models/hoje_maalebordsblade_v3.pt
+*.onnx
+
+# GeoPackage temporary files
+*.gpkg-shm
+*.gpkg-wal
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

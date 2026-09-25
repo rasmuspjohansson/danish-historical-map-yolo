@@ -1,0 +1,9 @@
+# Example only. prepare_wms_yolo_dataset.py writes a dataset.yaml automatically.
+path: ../data/generated/example_dataset
+train: images/train
+val: images/val
+
+names:
+  0: class_a
+  1: class_b
+  2: helper_class
