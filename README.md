@@ -2,13 +2,16 @@
 
 This repository contains a reproducible GIS-to-YOLO workflow for detecting
 cartographic symbols in Danish historical high-table maps (`Høje
-målebordsblade`). It can:
+målebordsblade`). Scripts in this repository:
 
 1. create georeferenced image tiles and YOLO labels from reviewed polygons and
-   bounding boxes in a GeoPackage;
-2. train or fine-tune an Ultralytics YOLO detector;
-3. run sliced inference on large images with SAHI; and
-4. export unmatched detections to a GeoPackage for review in QGIS.
+   bounding boxes in a GeoPackage; and
+2. export unmatched detections to a GeoPackage for review in QGIS.
+
+Training and sliced inference are not implemented here. They are run from the
+sibling repository [`SDFIdk/ML_object_detection`](https://github.com/SDFIdk/ML_object_detection),
+cloned next to this one and used through the shared `ML_object_detection` conda
+environment.
 
 The included example model detects `engtotter`, `mosepolygoner` and
 `vandlinjer`. `siv` and `lyng` are helper classes used to reduce false
@@ -18,26 +21,41 @@ The included example model detects `engtotter`, `mosepolygoner` and
 
 ## Repository contents
 
+Scripts in **this** repository:
+
 | Path | Purpose |
 | --- | --- |
 | `src/danish-historical-map-yolo/prepare_wms_yolo_dataset.py` | Build a masked YOLO dataset from WMS and GeoPackage annotations |
-| `../ML_object_detection/src/ML_object_detection/train.py` | Train and validate a YOLO detector (sibling repo) |
-| `../ML_object_detection/src/ML_object_detection/infer_with_sahi.py` | Run sliced inference and write LabelMe JSON (sibling repo) |
 | `src/danish-historical-map-yolo/export_prediction_candidates_to_gpkg.py` | Export georeferenced predictions for QGIS review |
 | `src/danish-historical-map-yolo/geopackage_to_yolo.py` | Convert existing georeferenced GeoTIFF tiles and boxes to YOLO labels |
 | `data/annotations/` | Example reviewed areas and source bounding boxes |
 | `models/hoje_maalebordsblade_v3.pt` | Included experimental YOLOv8n weights |
 | `models/MODEL_CARD.md` | Model purpose, metrics and limitations |
 
+Scripts used from the **sibling** repository (`../ML_object_detection`):
+
+| Path | Purpose |
+| --- | --- |
+| `src/ML_object_detection/train.py` | Train and validate a YOLO detector |
+| `src/ML_object_detection/infer_with_sahi.py` | Run sliced inference and write LabelMe JSON |
+
 Generated datasets and training runs are excluded from Git.
 
 ## Installation
 
-Install [Miniforge](https://github.com/conda-forge/miniforge), open a Miniforge
-Prompt, and run from the repository root.
+Install [Miniforge](https://github.com/conda-forge/miniforge) and open a Miniforge
+Prompt.
 
-Clone the shared training and inference utilities **next to** this repository
-(sibling folder):
+Clone the training and inference library **beside** this repository before
+creating the environment. Expected layout:
+
+```text
+projects/
+├── danish-historical-map-yolo/   # this repository
+└── ML_object_detection/           # sibling library
+```
+
+From this repository root:
 
 ```bat
 cd ..
@@ -53,7 +71,8 @@ git clone https://github.com/SDFIdk/ML_object_detection.git
 cd danish-historical-map-yolo
 ```
 
-Create the conda environment:
+Then create the conda environment from this repository. The environment is
+named `ML_object_detection` so the same environment covers both checkouts:
 
 ```bat
 mamba env create -f environment.yml
@@ -151,8 +170,9 @@ class counts without downloading images.
 
 ## 2. Train
 
-Start a new model from the standard YOLOv8n checkpoint (from this repo root,
-using the sibling training script):
+Training uses `train.py` from the sibling `ML_object_detection` checkout. Run
+it from this repository root so Ultralytics writes `runs/detect/` here. Start
+from the standard YOLOv8n checkpoint:
 
 ```bat
 python ..\ML_object_detection\src\ML_object_detection\train.py ^
@@ -164,12 +184,18 @@ python ..\ML_object_detection\src\ML_object_detection\train.py ^
 ```
 
 Use `--device cuda:0` when a compatible NVIDIA/CUDA installation is available.
-The script prints exact `BEST_WEIGHTS=` and `LAST_WEIGHTS=` paths and validates
-the best checkpoint after training. Use `best.pt` for later inference.
+The sibling script validates the trained model after training. Weights are
+written to `runs/detect/train/weights/best.pt` (Ultralytics adds `train2`,
+`train3`, and so on if that folder already exists). Use `best.pt` for later
+inference.
 
-Training output is written below `runs/detect/` and is ignored by Git.
+Training output is ignored by Git.
 
-## 3. Run the included model on large images
+## 3. Run inference on large images
+
+Sliced inference uses `infer_with_sahi.py` from the sibling
+`ML_object_detection` checkout. The example below runs the included weights on
+a folder of images:
 
 ```bat
 python ..\ML_object_detection\src\ML_object_detection\infer_with_sahi.py ^
@@ -180,8 +206,9 @@ python ..\ML_object_detection\src\ML_object_detection\infer_with_sahi.py ^
   --overlap_ratio 0.0625
 ```
 
-The output is one LabelMe-compatible JSON file per image. This route operates in
-image pixel coordinates; it does not itself create GIS geometries.
+The sibling script accepts `.tif` images (the dataset generator writes GeoTIFF
+tiles). The output is one LabelMe-compatible JSON file per image. This route
+operates in image pixel coordinates; it does not itself create GIS geometries.
 
 ## 4. Export review candidates to QGIS
 
@@ -242,16 +269,17 @@ an authoritative map-production result.
   [CC BY 4.0](https://www.klimadatastyrelsen.dk/om-klimadatastyrelsen/vilkaar-og-priser);
   retain appropriate attribution when redistributing derived data.
 - Source code in this repository is provided under the included MIT licence.
-- This project is based on and retains attribution to
-  [`SDFIdk/ML_object_detection`](https://github.com/SDFIdk/ML_object_detection).
+- Training and sliced inference come from
+  [`SDFIdk/ML_object_detection`](https://github.com/SDFIdk/ML_object_detection),
+  installed as a sibling checkout and not copied into this repository.
 
 The repository contains no Datafordeler API key. Each user must supply their
 own credentials and comply with the service terms.
 
 ## Smoke test
 
-From the repository root, with `ML_object_detection` cloned alongside and a
-single `*token.txt` file containing your Datafordeler API key:
+From the repository root, with the sibling `ML_object_detection` checkout in
+place and a single `*token.txt` file containing your Datafordeler API key:
 
 ```bash
 python test.py
