@@ -160,8 +160,7 @@ python ..\ML_object_detection\src\ML_object_detection\train.py ^
   --weights yolov8n.pt ^
   --epochs 50 ^
   --imgsz 640 ^
-  --device cpu ^
-  --name "hoje_maalebordsblade_experiment"
+  --device cpu
 ```
 
 Use `--device cuda:0` when a compatible NVIDIA/CUDA installation is available.

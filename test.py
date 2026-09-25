@@ -23,8 +23,6 @@ VAL_IMAGES = DATASET_DIR / "images/val"
 MANIFEST = DATASET_DIR / "tile_manifest.csv"
 INFER_OUT = REPO_ROOT / "output/labelme"
 GPKG_OUT = REPO_ROOT / "output/prediction_review.gpkg"
-TRAIN_RUN_NAME = "hoje_maalebordsblade_experiment"
-
 MIN_GPU_FREE_MIB = 6144
 
 
@@ -125,7 +123,10 @@ def parse_best_weights(stdout: str) -> Path:
             path = Path(line.split("=", 1)[1].strip())
             if path.is_file():
                 return path
-    matches = sorted((REPO_ROOT / "runs/detect").glob(f"{TRAIN_RUN_NAME}*/weights/best.pt"))
+    matches = sorted(
+        (REPO_ROOT / "runs/detect").glob("*/weights/best.pt"),
+        key=lambda path: path.stat().st_mtime,
+    )
     if matches:
         return matches[-1].resolve()
     raise SystemExit("Could not find best.pt after training (no BEST_WEIGHTS= in output)")
@@ -200,8 +201,6 @@ def main() -> None:
         "640",
         "--device",
         device,
-        "--name",
-        TRAIN_RUN_NAME,
     ]
     train_result = run_step("Train YOLO", train_cmd, env)
     if train_result.stdout:
