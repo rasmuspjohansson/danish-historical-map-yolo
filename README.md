@@ -28,16 +28,19 @@ Scripts in **this** repository:
 | `src/danish-historical-map-yolo/prepare_wms_yolo_dataset.py` | Build a masked YOLO dataset from WMS and GeoPackage annotations |
 | `src/danish-historical-map-yolo/export_prediction_candidates_to_gpkg.py` | Export georeferenced predictions for QGIS review |
 | `src/danish-historical-map-yolo/geopackage_to_yolo.py` | Convert existing georeferenced GeoTIFF tiles and boxes to YOLO labels |
+| `src/danish-historical-map-yolo/export_fp_fn_wrongclass_trueclass.py` | Split validation results into true class, wrong class, false positives and false negatives |
+| `detect_objects.py` | Detect across a whole tile grid, such as all of Denmark |
 | `data/annotations/` | Example reviewed areas and source bounding boxes |
 | `models/hoje_maalebordsblade_v3.pt` | Included experimental YOLOv8n weights |
 | `models/MODEL_CARD.md` | Model purpose, metrics and limitations |
 
-Scripts used from the **sibling** repository (`../ML_object_detection`):
+Scripts used from the **sibling** repositories:
 
 | Path | Purpose |
 | --- | --- |
-| `src/ML_object_detection/train.py` | Train and validate a YOLO detector |
-| `src/ML_object_detection/infer_with_sahi.py` | Run sliced inference and write LabelMe JSON |
+| `../ML_object_detection/src/ML_object_detection/train.py` | Train and validate a YOLO detector |
+| `../ML_object_detection/src/ML_object_detection/infer_with_sahi.py` | Run sliced inference and write LabelMe JSON |
+| `../ML_object_detection_production/` | Resumable tile queue, WMS download and detection pipeline used by `detect_objects.py` |
 
 Generated datasets and training runs are excluded from Git.
 
@@ -46,13 +49,14 @@ Generated datasets and training runs are excluded from Git.
 Install [Miniforge](https://github.com/conda-forge/miniforge) and open a Miniforge
 Prompt.
 
-Clone the training and inference library **beside** this repository before
-creating the environment. Expected layout:
+Clone the two libraries **beside** this repository before creating the
+environment. Expected layout:
 
 ```text
 projects/
-├── danish-historical-map-yolo/   # this repository
-└── ML_object_detection/           # sibling library
+├── danish-historical-map-yolo/     # this repository
+├── ML_object_detection/            # training and inference
+└── ML_object_detection_production/ # tile queue and detection pipeline
 ```
 
 From this repository root:
@@ -60,6 +64,7 @@ From this repository root:
 ```bat
 cd ..
 git clone https://github.com/SDFIdk/ML_object_detection.git
+git clone https://github.com/SDFIdk/ML_object_detection_production.git
 cd danish-historical-map-yolo
 ```
 
@@ -68,6 +73,7 @@ On Bash:
 ```bash
 cd ..
 git clone https://github.com/SDFIdk/ML_object_detection.git
+git clone https://github.com/SDFIdk/ML_object_detection_production.git
 cd danish-historical-map-yolo
 ```
 
@@ -240,6 +246,103 @@ The output contains:
 A candidate is not automatically an error. It may be a false positive, a
 missing annotation or a correct prediction whose box differs from the reference
 box. Review it in QGIS.
+
+## 5. Separate true class, wrong class, false positives, and false negatives
+
+`export_fp_fn_wrongclass_trueclass.py` uses the same tile manifest and overlap
+settings. Each annotation inside the evaluated tiles can be claimed by only one
+detection: predictions are taken in confidence order and assigned to the unused
+annotation with the greatest overlap, when that overlap is at least
+`--match-iou`.
+
+```bat
+python src\danish-historical-map-yolo\export_fp_fn_wrongclass_trueclass.py ^
+  --weights "runs\detect\train\weights\best.pt" ^
+  --images "data\generated\hoje_maalebordsblade\images\val" ^
+  --manifest "data\generated\hoje_maalebordsblade\tile_manifest.csv" ^
+  --annotations-gpkg "data\annotations\hoje_maalebordsblade_annotations.gpkg" ^
+  --annotations-layer "bbox_alle_objekter_v3" ^
+  --class-field "layer" ^
+  --output "output\val_error_types.gpkg" ^
+  --confidence 0.25 ^
+  --match-iou 0.20 ^
+  --dedupe-iou 0.40 ^
+  --device cpu ^
+  --overwrite
+```
+
+The GeoPackage contains four layers:
+
+| Layer | Contents |
+| --- | --- |
+| `true_class` | Detection assigned to an annotation of the same class |
+| `wrong_class` | Detection assigned to an annotation of a different class |
+| `false_positives` | Detection with no remaining annotation above `--match-iou` |
+| `false_negatives` | Annotation inside the evaluated tiles that no detection claimed |
+
+A wrong-class detection claims its annotation, so that object is not also a
+false negative. Open the validation GeoTIFFs and these four layers in QGIS with
+project CRS EPSG:25832.
+
+## 6. Detect across all of Denmark
+
+`detect_objects.py` runs the detector over a whole tile grid instead of a
+folder of images. It builds a resumable work queue from a polygon layer of
+1 km Kvadratnet cells, downloads each cell from the same WMS the model was
+trained on, runs the sliced inference, appends the detections to one
+GeoPackage, and deletes the tile image again.
+
+This script drives the pipeline in the sibling
+[`ML_object_detection_production`](https://github.com/SDFIdk/ML_object_detection_production)
+checkout, so clone that repo next to this one as described under
+[Installation](#installation).
+
+```bash
+python detect_objects.py \
+  --weights "runs/detect/train/weights/best.pt" \
+  --tiles "/mnt/T/mnt/trainingdata/bygningsudpegning/all_tiles_in_denmark.shp" \
+  --output "output/denmark_detections.gpkg" \
+  --device cuda:0
+```
+
+The run takes roughly twelve hours for the 51,273 cells that cover Denmark. It
+is resumable: each cell's status is recorded in `output/denmark_tiles.gpkg`, so
+re-running the same command continues where it stopped. Pass `--rebuild-queue`
+to start the grid over, or `--limit N` to try a handful of cells first.
+
+### Inspecting the results while the run is in progress
+
+The detections GeoPackage is in SQLite WAL mode and is only ever appended to,
+so you can add the `detections` layer in QGIS and press refresh to watch it
+grow. Keep the layer out of edit mode, and keep the GeoPackage on local disk:
+WAL needs real file locking and will not work on a network share. The script
+refuses a network output path unless you pass `--allow-network-output`.
+
+### Areas without imagery
+
+`Høje målebordsblade` do not cover Sønderjylland, which was not part of Denmark
+when the series was surveyed. Those cells are found before the run starts: a
+single coarse overview is requested with `TRANSPARENT=TRUE`, and its alpha
+channel is the service's own statement of where it has data. Cells with no data
+are marked `skipped` and never downloaded, which removes about 2,980 of the
+51,273 cells. Any empty cell that slips through is caught by a blank-image
+check before inference. Use `--no-coverage-prescan` to download every cell
+regardless.
+
+### Output
+
+One `detections` point layer in EPSG:25832, with one row per detected object:
+
+| Column | Contents |
+| --- | --- |
+| `tile_id` | Kvadratnet cell, e.g. `1km_6052_682` |
+| `class_name`, `class_id` | Predicted class |
+| `score` | Confidence |
+| `xmin`, `ymin`, `xmax`, `ymax` | Bounding box in map units |
+| `pixel_xmin` … `pixel_ymax` | Bounding box in tile pixels |
+
+The geometry is the centre of the bounding box; use the `xmin`/`ymin`/`xmax`/
+`ymax` columns if you need the extent.
 
 ## Example-model results
 

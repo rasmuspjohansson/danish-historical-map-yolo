@@ -27,7 +27,10 @@ from urllib.request import Request, urlopen
 
 import fiona
 import geopandas as gpd
+import numpy as np
+import rasterio
 from PIL import Image, ImageDraw
+from rasterio.transform import Affine
 from shapely.geometry import box as shapely_box
 from shapely.ops import unary_union
 
@@ -133,6 +136,36 @@ def parse_args() -> argparse.Namespace:
 
 def stable_short_hash(value: str) -> str:
     return hashlib.sha1(value.encode("utf-8")).hexdigest()[:8]
+
+
+def write_geotiff(
+    image: Image.Image,
+    path: Path,
+    bounds: tuple[float, float, float, float],
+    pixel_size: float,
+    crs: str,
+) -> None:
+    """Write a north-up 3-band uint8 GeoTIFF. Row 0 is the northern edge."""
+    array = np.asarray(image.convert("RGB"), dtype=np.uint8)
+    if array.ndim != 3 or array.shape[2] != 3:
+        raise RuntimeError(f"Expected an RGB image, got shape {array.shape}")
+    minx, _miny, _maxx, maxy = bounds
+    transform = Affine(pixel_size, 0.0, minx, 0.0, -pixel_size, maxy)
+    height, width, _bands = array.shape
+    with rasterio.open(
+        path,
+        "w",
+        driver="GTiff",
+        height=height,
+        width=width,
+        count=3,
+        dtype="uint8",
+        crs=crs,
+        transform=transform,
+        photometric="RGB",
+        interleave="pixel",
+    ) as dataset:
+        dataset.write(np.transpose(array, (2, 0, 1)))
 
 
 def make_request_url(base_url: str, api_key: str, params: dict[str, str]) -> str:
@@ -491,7 +524,7 @@ def main() -> None:
                         included_boxes,
                         args.edge_box_padding_pixels * args.pixel_size,
                     )
-                image.save(image_path, format="TIFF")
+                write_geotiff(image, image_path, bounds, args.pixel_size, args.target_crs)
                 if args.delay > 0:
                     time.sleep(args.delay)
             if not args.dry_run:

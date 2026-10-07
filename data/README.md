@@ -16,9 +16,10 @@ The GeoPackage contains 18 reviewed areas and 2,416 source bounding boxes:
 | `siv` | 60 | helper/distractor |
 | `lyng` | 94 | helper/distractor |
 
-Generated TIFF tiles, YOLO text labels and training runs are intentionally not
-versioned. Create them with `prepare_wms_yolo_dataset.py`; its default output
-can be placed below `data/generated/`, which is ignored by Git.
+Generated GeoTIFF tiles, YOLO text labels and training runs are intentionally
+not versioned. Each tile is a 3-band RGB GeoTIFF in the target CRS, so it opens
+in the correct place in QGIS. Create them with `prepare_wms_yolo_dataset.py`;
+its default output can be placed below `data/generated/`, which is ignored by Git.
 
 The map imagery is requested from Klimadatastyrelsen's Datafordeler service at
 generation time. No API key is stored in this repository.
