@@ -26,7 +26,7 @@ the shared `ML_object_detection` conda environment.
 | [ML_object_detection](https://github.com/Klimadatastyrelsen/ML_object_detection) | Library | Train a YOLO detector; sliced inference on folders of images |
 | [ML_object_detection_production](https://github.com/Klimadatastyrelsen/ML_object_detection_production) | Library | Run a trained detector over a national tile grid |
 | **danish-historical-map-yolo** (this repo) | Project | `engtotter`, `lyng`, `siv`, `mosepolygoner`, `vandlinjer` on Høje Målebordsblade |
-| `ML_windmill_detection` | Project | Windmills on OrtoRGB |
+| [ML_windmill_detection](https://github.com/Klimadatastyrelsen/ML_windmill_detection) | Project | Windmills on OrtoRGB |
 
 ## Repository contents
 
