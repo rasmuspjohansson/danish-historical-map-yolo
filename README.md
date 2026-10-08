@@ -8,16 +8,25 @@ målebordsblade`). Scripts in this repository:
    bounding boxes in a GeoPackage; and
 2. export unmatched detections to a GeoPackage for review in QGIS.
 
-Training and sliced inference are not implemented here. They are run from the
-sibling repository [`SDFIdk/ML_object_detection`](https://github.com/SDFIdk/ML_object_detection),
-cloned next to this one and used through the shared `ML_object_detection` conda
-environment.
-
 The included example model detects `engtotter`, `mosepolygoner` and
 `vandlinjer`. `siv` and `lyng` are helper classes used to reduce false
 `engtotter` detections.
 
 ![Validation predictions](docs/assets/validation_predictions_v3.jpg)
+
+## Repo map
+
+This is a **project** repo: it holds the data paths, models and results for one
+detection campaign. Training and nationwide inference are not implemented here
+but come from two shared libraries, cloned next to this one and used through
+the shared `ML_object_detection` conda environment.
+
+| Repo | Kind | Purpose |
+| --- | --- | --- |
+| [ML_object_detection](https://github.com/Klimadatastyrelsen/ML_object_detection) | Library | Train a YOLO detector; sliced inference on folders of images |
+| [ML_object_detection_production](https://github.com/Klimadatastyrelsen/ML_object_detection_production) | Library | Run a trained detector over a national tile grid |
+| **danish-historical-map-yolo** (this repo) | Project | `engtotter`, `lyng`, `siv`, `mosepolygoner`, `vandlinjer` on Høje Målebordsblade |
+| `ML_windmill_detection` | Project | Windmills on OrtoRGB |
 
 ## Repository contents
 
@@ -63,8 +72,8 @@ From this repository root:
 
 ```bat
 cd ..
-git clone https://github.com/SDFIdk/ML_object_detection.git
-git clone https://github.com/SDFIdk/ML_object_detection_production.git
+git clone https://github.com/Klimadatastyrelsen/ML_object_detection.git
+git clone https://github.com/Klimadatastyrelsen/ML_object_detection_production.git
 cd danish-historical-map-yolo
 ```
 
@@ -72,8 +81,8 @@ On Bash:
 
 ```bash
 cd ..
-git clone https://github.com/SDFIdk/ML_object_detection.git
-git clone https://github.com/SDFIdk/ML_object_detection_production.git
+git clone https://github.com/Klimadatastyrelsen/ML_object_detection.git
+git clone https://github.com/Klimadatastyrelsen/ML_object_detection_production.git
 cd danish-historical-map-yolo
 ```
 
@@ -293,7 +302,7 @@ trained on, runs the sliced inference, appends the detections to one
 GeoPackage, and deletes the tile image again.
 
 This script drives the pipeline in the sibling
-[`ML_object_detection_production`](https://github.com/SDFIdk/ML_object_detection_production)
+[`ML_object_detection_production`](https://github.com/Klimadatastyrelsen/ML_object_detection_production)
 checkout, so clone that repo next to this one as described under
 [Installation](#installation).
 
@@ -309,6 +318,25 @@ The run takes roughly twelve hours for the 51,273 cells that cover Denmark. It
 is resumable: each cell's status is recorded in `output/denmark_tiles.gpkg`, so
 re-running the same command continues where it stopped. Pass `--rebuild-queue`
 to start the grid over, or `--limit N` to try a handful of cells first.
+
+### If the imagery service goes down
+
+A run of consecutive download failures is treated as the service being down
+rather than the cells being bad: the run pauses with growing backoff and the
+affected cells stay `pending`. A cell is only recorded as `failed` after five
+tries.
+
+Should cells still end up `failed`, put them back in the queue with:
+
+```bash
+python detect_objects.py \
+  --weights "runs/detect/train/weights/best.pt" \
+  --device cuda:0 \
+  --retry-failed
+```
+
+Detections from the earlier pass are kept; the re-run appends to the same
+GeoPackage.
 
 ### Inspecting the results while the run is in progress
 
@@ -373,7 +401,7 @@ an authoritative map-production result.
   retain appropriate attribution when redistributing derived data.
 - Source code in this repository is provided under the included MIT licence.
 - Training and sliced inference come from
-  [`SDFIdk/ML_object_detection`](https://github.com/SDFIdk/ML_object_detection),
+  [`Klimadatastyrelsen/ML_object_detection`](https://github.com/Klimadatastyrelsen/ML_object_detection),
   installed as a sibling checkout and not copied into this repository.
 
 The repository contains no Datafordeler API key. Each user must supply their

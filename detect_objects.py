@@ -99,6 +99,11 @@ def parse_args() -> argparse.Namespace:
         help="Discard an existing queue and start the grid over",
     )
     parser.add_argument(
+        "--retry-failed",
+        action="store_true",
+        help="Return tiles that previously failed to pending before running",
+    )
+    parser.add_argument(
         "--allow-network-output",
         action="store_true",
         help="Permit a detections GeoPackage on a network mount (blocks QGIS reads)",
@@ -137,7 +142,10 @@ def main() -> None:
     from ML_object_detection_production import tile_queue
     from ML_object_detection_production.coverage import find_uncovered_tiles
     from ML_object_detection_production.geopackage_io import ensure_detections_layer
-    from ML_object_detection_production.object_detection_pipeline import run_pipeline
+    from ML_object_detection_production.object_detection_pipeline import (
+        install_stop_handlers,
+        run_pipeline,
+    )
     from ML_object_detection_production.tiles_gpkg import (
         STATUS_DONE,
         STATUS_FAILED,
@@ -172,11 +180,10 @@ def main() -> None:
         log.info("Building tile queue from %s ...", args.tiles)
         create_production_tiles_gpkg(
             source_gpkg=args.tiles,
-            source_layer=args.tiles_layer,
             output_gpkg=queue_path,
+            source_layer=args.tiles_layer,
             id_field=args.id_field,
             all_pending=True,
-            bootstrap_pending=None,
         )
 
         if args.limit and args.limit > 0:
@@ -200,6 +207,15 @@ def main() -> None:
             )
     else:
         log.info("Resuming existing queue %s", queue_path)
+
+    if args.retry_failed:
+        n = set_status_for_tiles(
+            queue_path,
+            [t["KN1kmDK"] for t in list_tiles_with_status(queue_path, STATUS_FAILED)],
+            STATUS_PENDING,
+            only_from_status=STATUS_FAILED,
+        )
+        log.info("Returned %d previously failed tile(s) to pending", n)
 
     args.image_dir.mkdir(parents=True, exist_ok=True)
     ensure_detections_layer(output)
@@ -230,6 +246,8 @@ def main() -> None:
     )
     log.info("Detections: %s (safe to open in QGIS while this runs)", output)
 
+    # Ctrl+C then finishes the current tile rather than interrupting a write.
+    install_stop_handlers()
     result = run_pipeline(config)
 
     log.info("=== Run summary ===")
