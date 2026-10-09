@@ -10,11 +10,14 @@ dependencies:
   - numpy
   - pillow
   - pandas
+  - psutil
   - rasterio
   - shapely
   - tqdm
+  - memory_profiler
   - pip
   - pip:
+      - labelme2yolo
       - ultralytics
       - sahi
       - tifffile
