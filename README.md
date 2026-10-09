@@ -12,7 +12,10 @@ The included example model detects `engtotter`, `mosepolygoner` and
 `vandlinjer`. `siv` and `lyng` are helper classes used to reduce false
 `engtotter` detections.
 
-![Validation predictions](docs/assets/validation_predictions_v3.jpg)
+<img width="1436" height="985" alt="Skærmbillede 2026-10-09 144339" src="https://github.com/user-attachments/assets/eb537b96-1271-42cd-a019-360b8ff05b87" />
+
+
+
 
 ## Repo map
 
